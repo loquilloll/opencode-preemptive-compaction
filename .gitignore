@@ -1,0 +1,14 @@
+# dependency directories
+node_modules/
+
+# opencode local cache
+.opencode/
+
+# logs
+*.log
+
+# build output
+dist/
+
+# sandbox/runtime artifacts
+.sandcastle/
