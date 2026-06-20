@@ -30,10 +30,15 @@ Build a self-contained drop-in file (no runtime deps) and drop it into your plug
 
 ```sh
 bun run build
-# -> dist/preemptive-compaction.plugin.js  (~20 KB, fully inlined)
+# -> dist/preemptive-compaction.plugin.js  (~20 KB, single default export, fully inlined)
 cp dist/preemptive-compaction.plugin.js ~/.config/opencode/plugins/preemptive-compaction.js
 # or, project-scoped: .opencode/plugins/preemptive-compaction.js
 ```
+
+> The drop-in bundles `src/plugin.ts`, which exports **only** the plugin function as the
+> default export. OpenCode's local-plugin loader rejects modules with non-function named
+> exports, so do not bundle `src/index.ts` (the full public API) as a local plugin — use it
+> only for npm/programmatic consumption.
 
 OpenCode auto-loads every `.ts`/`.js` file in those directories. The default export is the plugin.
 
