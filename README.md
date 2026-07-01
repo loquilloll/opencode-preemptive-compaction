@@ -46,7 +46,7 @@ OpenCode auto-loads every `.ts`/`.js` file in those directories. The default exp
 
 ```sh
 bun install
-bun test          # 55 tests
+bun test          # 56 tests
 bun run typecheck # tsc --noEmit
 ```
 
@@ -79,14 +79,15 @@ All configuration is via environment variables (read at plugin load). Defaults m
 | `PREEMPTIVE_COMPACTION_MONITOR_TIMEOUT_MS` | `120000` | Timeout for recovery `summarize` calls. |
 | `ANTHROPIC_1M_CONTEXT` | _unset_ | Treat Anthropic models as having the 1M context window. |
 | `VERTEX_ANTHROPIC_1M_CONTEXT` | _unset_ | Same, for the Vertex Anthropic provider. |
-| `PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON` | _unset_ | JSON map of `"<provider>/<model>": <limit>` for non-Anthropic models, e.g. `{"opencode/kimi-k2.5-free":262144}`. |
+| `PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON` | _unset_ | JSON map of `"<provider>/<model>": <limit>` for non-Anthropic models. Entries override or extend the built-in OpenAI and GitHub Copilot catalog, e.g. `{"opencode/kimi-k2.5-free":262144}`. |
 
 ### Context-limit resolution
 
 The hook must know each model's true context limit to compute the usage ratio:
 
 - **Anthropic** providers (`anthropic`, `google-vertex-anthropic`, `aws-bedrock-anthropic`, and `google` + `claude-*`): 1M for GA models (`claude-(opus|sonnet)-4.6/4.7/4.8`, `claude-fable-5`, `claude-mythos-5`), else 200k. The `ANTHROPIC_1M_CONTEXT`/`VERTEX_ANTHROPIC_1M_CONTEXT` env vars or the internal `anthropicContext1MEnabled` flag force 1M.
-- **Other providers**: looked up in the model-limits map (env `PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON`). Unknown models return `null` and compaction is **skipped** (safe default — never compact when the limit is unknown).
+- **OpenAI and GitHub Copilot**: a built-in model-limit catalog is bundled for the currently supported `gpt-5*`, `gpt-4.1`, and `claude-*` entries used by this repo's global install.
+- **Other providers**: looked up in the built-in/env model-limits map (`PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON` overlays the built-ins). Unknown models return `null` and compaction is **skipped** (safe default — never compact when the limit is unknown).
 
 ## How it maps to the original OmO hook
 

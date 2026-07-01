@@ -74,12 +74,19 @@ describe("config loader", () => {
     expect(parseModelLimitsJson(undefined).size).toBe(0)
   })
 
-  it("loadModelCacheState reads ANTHROPIC_1M_CONTEXT and model limits json", () => {
+  it("loadModelCacheState includes built-in model limits", () => {
+    const state = loadModelCacheState({})
+    expect(state.modelContextLimitsCache.get("openai/gpt-5.4")).toBe(1_000_000)
+    expect(state.modelContextLimitsCache.get("github-copilot/claude-haiku-4.5")).toBe(200_000)
+  })
+
+  it("loadModelCacheState reads ANTHROPIC_1M_CONTEXT and lets env model limits override built-ins", () => {
     const state = loadModelCacheState({
       ANTHROPIC_1M_CONTEXT: "true",
-      PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON: '{"opencode/kimi-k2.5-free":200000}',
+      PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON: '{"opencode/kimi-k2.5-free":200000,"openai/gpt-5.4":400000}',
     })
     expect(state.anthropicContext1MEnabled).toBe(true)
     expect(state.modelContextLimitsCache.get("opencode/kimi-k2.5-free")).toBe(200_000)
+    expect(state.modelContextLimitsCache.get("openai/gpt-5.4")).toBe(400_000)
   })
 })

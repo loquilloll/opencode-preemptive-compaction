@@ -32,6 +32,54 @@ export const DEFAULT_CONFIG: PreemptiveCompactionConfig = {
   },
 }
 
+const BUILT_IN_MODEL_CONTEXT_LIMITS = {
+  "openai/gpt-5": 400_000,
+  "openai/gpt-5.2": 400_000,
+  "openai/gpt-5.3-codex": 400_000,
+  "openai/gpt-5.3-codex-spark": 128_000,
+  "openai/gpt-5.4": 1_000_000,
+  "openai/gpt-5.4-fast": 1_050_000,
+  "openai/gpt-5.4-mini": 400_000,
+  "openai/gpt-5.4-mini-fast": 400_000,
+  "openai/gpt-5.5": 400_000,
+  "openai/gpt-5.5-fast": 400_000,
+  "openai/gpt-5.5-pro": 400_000,
+  "copilot/claude-haiku-4.5": 200_000,
+  "copilot/claude-opus-4.5": 200_000,
+  "copilot/claude-opus-4.6": 200_000,
+  "copilot/claude-opus-4.7": 200_000,
+  "copilot/claude-sonnet-4.5": 200_000,
+  "copilot/claude-sonnet-4.6": 200_000,
+  "copilot/gpt-4.1": 128_000,
+  "copilot/gpt-5-mini": 264_000,
+  "copilot/gpt-5.2": 400_000,
+  "copilot/gpt-5.2-codex": 400_000,
+  "copilot/gpt-5.3-codex": 400_000,
+  "copilot/gpt-5.4": 400_000,
+  "copilot/gpt-5.4-mini": 400_000,
+  "copilot/gpt-5.5": 400_000,
+  "github-copilot/claude-haiku-4.5": 200_000,
+  "github-copilot/claude-opus-4.5": 200_000,
+  "github-copilot/claude-opus-4.6": 200_000,
+  "github-copilot/claude-opus-4.7": 200_000,
+  "github-copilot/claude-sonnet-4.5": 200_000,
+  "github-copilot/claude-sonnet-4.6": 200_000,
+  "github-copilot/gpt-4.1": 128_000,
+  "github-copilot/gpt-5-mini": 264_000,
+  "github-copilot/gpt-5.2": 400_000,
+  "github-copilot/gpt-5.2-codex": 400_000,
+  "github-copilot/gpt-5.3-codex": 400_000,
+  "github-copilot/gpt-5.4": 400_000,
+  "github-copilot/gpt-5.4-mini": 400_000,
+  "github-copilot/gpt-5.5": 400_000,
+} satisfies Record<string, number>
+
+type Env = Record<string, string | undefined>
+
+function getDefaultEnv(): Env {
+  return ((globalThis as typeof globalThis & { process?: { env?: Env } }).process?.env ?? {}) as Env
+}
+
 function parseBoolean(raw: string | undefined, fallback: boolean): boolean {
   if (raw === undefined) return fallback
   return raw === "true" || raw === "1" || raw.toLowerCase() === "yes"
@@ -47,7 +95,7 @@ function clampThreshold(value: number): number {
   return Math.min(0.95, Math.max(0.5, value))
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): PreemptiveCompactionConfig {
+export function loadConfig(env: Env = getDefaultEnv()): PreemptiveCompactionConfig {
   const degradationMonitor: DegradationMonitorConfig = {
     enabled: parseBoolean(env.PREEMPTIVE_COMPACTION_MONITOR_ENABLED, DEFAULT_CONFIG.degradationMonitor.enabled),
     monitorCount: parseNumber(env.PREEMPTIVE_COMPACTION_MONITOR_COUNT, DEFAULT_CONFIG.degradationMonitor.monitorCount),
@@ -88,12 +136,21 @@ export function parseModelLimitsJson(raw: string | undefined): Map<string, numbe
   return cache
 }
 
-export function loadModelCacheState(env: NodeJS.ProcessEnv = process.env): {
+function loadBuiltInModelLimits(): Map<string, number> {
+  return new Map<string, number>(Object.entries(BUILT_IN_MODEL_CONTEXT_LIMITS))
+}
+
+export function loadModelCacheState(env: Env = getDefaultEnv()): {
   anthropicContext1MEnabled: boolean
   modelContextLimitsCache: Map<string, number>
 } {
+  const modelContextLimitsCache = loadBuiltInModelLimits()
+  for (const [model, limit] of parseModelLimitsJson(env.PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON)) {
+    modelContextLimitsCache.set(model, limit)
+  }
+
   return {
     anthropicContext1MEnabled: parseBoolean(env.ANTHROPIC_1M_CONTEXT, false),
-    modelContextLimitsCache: parseModelLimitsJson(env.PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON),
+    modelContextLimitsCache,
   }
 }
