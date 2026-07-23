@@ -69,6 +69,12 @@ export function createPreemptiveCompactionHook(
     if (event.type === "session.compacted") {
       const sessionID = resolveSessionEventID(props)
       if (sessionID) {
+        // Port decision: the server emitting session.compacted is the source of
+        // truth that compaction happened, even when our summarize() promise
+        // rejected or timed out (the request is not cancelled server-side).
+        // Mark the session compacted so the trigger does not fire again; the
+        // next token-bearing message.updated clears this to re-arm for growth.
+        compactedSessions.add(sessionID)
         postCompactionMonitor.onSessionCompacted(sessionID)
       }
       return

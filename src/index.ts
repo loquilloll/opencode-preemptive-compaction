@@ -1,6 +1,7 @@
 import { createPreemptiveCompactionHook } from "./preemptive-compaction"
 import { loadConfig, loadModelCacheState } from "./config"
 import { attachLoggerClient } from "./internal/logger"
+import { readConfigFile } from "./internal/config-file"
 import type { PreemptiveCompactionClient } from "./preemptive-compaction-types"
 
 export { createPreemptiveCompactionHook } from "./preemptive-compaction"
@@ -39,15 +40,16 @@ export type PluginHooks = ReturnType<typeof createPreemptiveCompactionHook>
 export type Plugin = (ctx: OpenCodePluginContext) => Promise<PluginHooks | Record<string, never>>
 
 export const PreemptiveCompactionPlugin: Plugin = async ({ client, directory }) => {
-  const config = loadConfig()
+  attachLoggerClient(client)
+
+  const file = readConfigFile()
+  const config = loadConfig(process.env, file)
 
   if (!config.enabled) {
     return {}
   }
 
-  attachLoggerClient(client)
-
-  const modelCacheState = loadModelCacheState()
+  const modelCacheState = loadModelCacheState(process.env, file)
 
   return createPreemptiveCompactionHook({ client, directory }, config, modelCacheState)
 }

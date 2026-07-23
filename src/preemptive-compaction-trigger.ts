@@ -14,16 +14,22 @@ import type {
 declare function setTimeout(handler: () => void, timeout?: number): unknown
 declare function clearTimeout(timeoutID: unknown): void
 
+export class CompactionTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Compaction summarize timed out after ${timeoutMs}ms`)
+    this.name = "CompactionTimeoutError"
+  }
+}
+
 async function withTimeout<TValue>(
   promise: Promise<TValue>,
   timeoutMs: number,
-  errorMessage: string,
 ): Promise<TValue> {
   let timeoutID: unknown
 
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutID = setTimeout(() => {
-      reject(new Error(errorMessage))
+      reject(new CompactionTimeoutError(timeoutMs))
     }, timeoutMs)
   })
 
@@ -96,11 +102,25 @@ export async function runPreemptiveCompactionIfNeeded(args: {
         query: { directory: ctx.directory },
       }),
       config.timeoutMs,
-      `Compaction summarize timed out after ${config.timeoutMs}ms`,
     )
 
     compactedSessions.add(sessionID)
   } catch (error) {
+    if (error instanceof CompactionTimeoutError) {
+      // Port decision: a timeout is indeterminate, not a failure. The summarize
+      // request is still in flight server-side (it is not cancelled) and the
+      // server's session.compacted event is the source of truth. Suppress the
+      // "could not run" toast; cooldown still applies and the in-progress lock
+      // is released in finally so session.compacted can mark success.
+      log("[preemptive-compaction] Compaction summarize timed out; awaiting server confirmation", {
+        sessionID,
+        providerID: cached.providerID,
+        modelID: cached.modelID,
+        timeoutMs: config.timeoutMs,
+      })
+      return
+    }
+
     const errorMessage = String(error)
     log("[preemptive-compaction] Compaction failed", {
       sessionID,

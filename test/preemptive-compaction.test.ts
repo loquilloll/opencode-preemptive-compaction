@@ -345,12 +345,22 @@ describe("preemptive-compaction", () => {
       )
 
       expect(ctx.client.session.summarize).toHaveBeenCalledTimes(1)
-      expect(logMock).toHaveBeenCalledWith("[preemptive-compaction] Compaction failed", {
-        sessionID,
-        providerID: "anthropic",
-        modelID: "claude-sonnet-4-6",
-        error: expect.stringContaining("Compaction summarize timed out"),
-      })
+      // A timeout is indeterminate (server may still complete), so it must NOT
+      // be reported as a hard failure: no "Compaction failed" log, no toast.
+      expect(logMock).not.toHaveBeenCalledWith(
+        "[preemptive-compaction] Compaction failed",
+        expect.anything(),
+      )
+      expect(ctx.client.tui.showToast).not.toHaveBeenCalled()
+      expect(logMock).toHaveBeenCalledWith(
+        "[preemptive-compaction] Compaction summarize timed out; awaiting server confirmation",
+        {
+          sessionID,
+          providerID: "anthropic",
+          modelID: "claude-sonnet-4-6",
+          timeoutMs: defaultTestConfig().timeoutMs,
+        },
+      )
 
       const originalNow = Date.now
       Date.now = () => originalNow() + 61_000
@@ -371,6 +381,89 @@ describe("preemptive-compaction", () => {
         )
 
         expect(ctx.client.session.summarize).toHaveBeenCalledTimes(2)
+      } finally {
+        Date.now = originalNow
+      }
+    } finally {
+      restoreTimeouts()
+    }
+  })
+
+  it("should mark a session compacted on the session.compacted event and suppress re-trigger", async () => {
+    const ctx = createMockCtx()
+    const hook = createPreemptiveCompactionHook(ctx, defaultTestConfig())
+    const sessionID = "ses_compacted_event"
+
+    await hook.event(
+      buildTokenMessage({
+        sessionID,
+        providerID: "anthropic",
+        modelID: "claude-sonnet-4-6",
+        input: 800000,
+        cacheRead: 10000,
+      }),
+    )
+
+    await hook.event({
+      event: {
+        type: "session.compacted",
+        properties: { info: { id: sessionID } },
+      },
+    })
+
+    await hook["tool.execute.after"](
+      { tool: "bash", sessionID, callID: "call_after_compacted" },
+      { title: "", output: "test", metadata: null },
+    )
+
+    expect(ctx.client.session.summarize).not.toHaveBeenCalled()
+  })
+
+  it("should not re-compact after a summarize timeout once the server reports session.compacted", async () => {
+    const restoreTimeouts = setupImmediateTimeouts()
+    const ctx = createMockCtx()
+    const hook = createPreemptiveCompactionHook(ctx, defaultTestConfig())
+    const sessionID = "ses_timeout_then_compacted"
+
+    // First summarize never resolves -> times out; server nonetheless compacts
+    // and emits session.compacted, which must prevent a second compaction.
+    ctx.client.session.summarize.mockImplementationOnce(() => new Promise(() => {}))
+
+    try {
+      await hook.event(
+        buildTokenMessage({
+          sessionID,
+          providerID: "anthropic",
+          modelID: "claude-sonnet-4-6",
+          input: 800000,
+          cacheRead: 10000,
+        }),
+      )
+
+      await hook["tool.execute.after"](
+        { tool: "bash", sessionID, callID: "call_1" },
+        { title: "", output: "test", metadata: null },
+      )
+
+      expect(ctx.client.session.summarize).toHaveBeenCalledTimes(1)
+      expect(ctx.client.tui.showToast).not.toHaveBeenCalled()
+
+      await hook.event({
+        event: {
+          type: "session.compacted",
+          properties: { info: { id: sessionID } },
+        },
+      })
+
+      const originalNow = Date.now
+      Date.now = () => originalNow() + 61_000
+      try {
+        await hook["tool.execute.after"](
+          { tool: "bash", sessionID, callID: "call_2" },
+          { title: "", output: "test", metadata: null },
+        )
+
+        expect(ctx.client.session.summarize).toHaveBeenCalledTimes(1)
       } finally {
         Date.now = originalNow
       }
