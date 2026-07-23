@@ -12,3 +12,25 @@ dist/
 
 # sandbox/runtime artifacts
 .sandcastle/
+
+# ast-grep generated repo map / cache (graph.json, REPORT.md, .report.lock)
+.ast-grep/
+
+# typescript incremental build info
+*.tsbuildinfo
+
+# test coverage output
+coverage/
+
+# environment files (keep example templates)
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# editor directories
+.vscode/
+.idea/
