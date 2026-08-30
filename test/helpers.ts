@@ -14,7 +14,6 @@ export function defaultTestConfig(): PreemptiveCompactionConfig {
     threshold: DEFAULT_CONFIG.threshold,
     cooldownMs: DEFAULT_CONFIG.cooldownMs,
     timeoutMs: DEFAULT_CONFIG.timeoutMs,
-    compactionModel: DEFAULT_CONFIG.compactionModel,
     degradationMonitor: {
       enabled: DEFAULT_CONFIG.degradationMonitor.enabled,
       monitorCount: DEFAULT_CONFIG.degradationMonitor.monitorCount,

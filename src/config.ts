@@ -12,7 +12,6 @@ export interface PreemptiveCompactionConfig {
   threshold: number
   cooldownMs: number
   timeoutMs: number
-  compactionModel: string | undefined
   degradationMonitor: DegradationMonitorConfig
 }
 
@@ -21,7 +20,6 @@ export interface PreemptiveCompactionConfigFile {
   threshold?: number
   cooldownMs?: number
   timeoutMs?: number
-  compactionModel?: string
   modelLimits?: Record<string, number>
   anthropicContext1M?: boolean
   degradationMonitor?: {
@@ -39,7 +37,6 @@ export const DEFAULT_CONFIG: PreemptiveCompactionConfig = {
   threshold: 0.78,
   cooldownMs: 60_000,
   timeoutMs: 60_000,
-  compactionModel: undefined,
   degradationMonitor: {
     enabled: true,
     monitorCount: 5,
@@ -148,12 +145,6 @@ export function loadConfig(
     ? file.threshold
     : parseNumber(env.PREEMPTIVE_COMPACTION_THRESHOLD, DEFAULT_CONFIG.threshold)
 
-  const compactionModelFromEnv = env.PREEMPTIVE_COMPACTION_MODEL ?? ""
-  const compactionModel =
-    (typeof file?.compactionModel === "string" && file.compactionModel.length > 0
-      ? file.compactionModel
-      : compactionModelFromEnv) || undefined
-
   return {
     enabled:
       typeof file?.enabled === "boolean"
@@ -166,7 +157,6 @@ export function loadConfig(
     timeoutMs: isFiniteNumber(file?.timeoutMs)
       ? file.timeoutMs
       : parseNumber(env.PREEMPTIVE_COMPACTION_TIMEOUT_MS, DEFAULT_CONFIG.timeoutMs),
-    compactionModel,
     degradationMonitor,
   }
 }

@@ -9,7 +9,6 @@ describe("config loader", () => {
     "PREEMPTIVE_COMPACTION_THRESHOLD",
     "PREEMPTIVE_COMPACTION_COOLDOWN_MS",
     "PREEMPTIVE_COMPACTION_TIMEOUT_MS",
-    "PREEMPTIVE_COMPACTION_MODEL",
     "ANTHROPIC_1M_CONTEXT",
     "PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON",
   ]
@@ -37,7 +36,6 @@ describe("config loader", () => {
     expect(config.threshold).toBe(0.78)
     expect(config.cooldownMs).toBe(60_000)
     expect(config.timeoutMs).toBe(60_000)
-    expect(config.compactionModel).toBeUndefined()
   })
 
   it("clamps threshold into the 0.5–0.95 range", () => {
@@ -55,12 +53,6 @@ describe("config loader", () => {
     expect(config.enabled).toBe(false)
     expect(config.cooldownMs).toBe(30_000)
     expect(config.timeoutMs).toBe(45_000)
-  })
-
-  it("loads compactionModel override", () => {
-    expect(loadConfig({ PREEMPTIVE_COMPACTION_MODEL: "opencode/glm-4.6" }).compactionModel).toBe(
-      "opencode/glm-4.6",
-    )
   })
 
   it("parses model limits json into a map", () => {
@@ -114,9 +106,6 @@ describe("config loader", () => {
       expect(cfg.cooldownMs).toBe(30_000)
       expect(cfg.timeoutMs).toBe(45_000)
 
-      const badModel = { compactionModel: 123 } as unknown as PreemptiveCompactionConfigFile
-      expect(loadConfig({ PREEMPTIVE_COMPACTION_MODEL: "env/model" }, badModel).compactionModel).toBe("env/model")
-
       const badDm = {
         degradationMonitor: { recoverySuppressionMs: "long", monitorCount: "x" },
       } as unknown as PreemptiveCompactionConfigFile
@@ -133,20 +122,12 @@ describe("config loader", () => {
       expect(cfg.threshold).toBe(0.9)
       expect(cfg.cooldownMs).toBe(30_000)
       expect(cfg.timeoutMs).toBe(60_000)
-      expect(cfg.compactionModel).toBeUndefined()
     })
 
     it("boolean enabled from file wins; mistyped enabled ignored", () => {
       expect(loadConfig({}, { enabled: false }).enabled).toBe(false)
       const badEnabled = { enabled: "false" } as unknown as PreemptiveCompactionConfigFile
       expect(loadConfig({}, badEnabled).enabled).toBe(true)
-    })
-
-    it("empty-string compactionModel from file is treated as unset", () => {
-      expect(
-        loadConfig({ PREEMPTIVE_COMPACTION_MODEL: "env/model" }, { compactionModel: "" }).compactionModel,
-      ).toBe("env/model")
-      expect(loadConfig({}, { compactionModel: "file/model" }).compactionModel).toBe("file/model")
     })
 
     it("degradationMonitor merges per-field across all six sub-fields", () => {

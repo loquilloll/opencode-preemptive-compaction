@@ -92,6 +92,9 @@ describe("preemptive-compaction", () => {
 
     expect(ctx.client.session.messages).not.toHaveBeenCalled()
     expect(ctx.client.session.summarize).toHaveBeenCalled()
+    const fallbackCall = (ctx.client.session.summarize as ReturnType<typeof import("bun:test")["mock"]>).mock.calls[0]?.[0]
+    expect(fallbackCall?.body?.providerID).toBe("anthropic")
+    expect(fallbackCall?.body?.modelID).toBe("claude-sonnet-4-6")
   })
 
   it("should trigger compaction for google-vertex-anthropic provider", async () => {
@@ -700,11 +703,11 @@ describe("preemptive-compaction", () => {
     expect(ctx.client.session.summarize).not.toHaveBeenCalled()
   })
 
-  it("should route compaction to the configured compactionModel override", async () => {
+  it("should route compaction to the model override from the config hook", async () => {
     const ctx = createMockCtx()
     const config = defaultTestConfig()
-    config.compactionModel = "opencode/glm-4.6"
     const hook = createPreemptiveCompactionHook(ctx, config)
+    await hook.config({ agent: { compaction: { model: "opencode/glm-4.6" } } })
     const sessionID = "ses_model_override"
 
     await hook.event(
@@ -725,6 +728,53 @@ describe("preemptive-compaction", () => {
     const call = (ctx.client.session.summarize as ReturnType<typeof import("bun:test")["mock"]>).mock.calls[0]?.[0]
     expect(call?.body?.providerID).toBe("opencode")
     expect(call?.body?.modelID).toBe("glm-4.6")
+  })
+
+  it("resets the override to the chat model when the config hook is re-broadcast without a model", async () => {
+    const ctx = createMockCtx()
+    const config = defaultTestConfig()
+    const hook = createPreemptiveCompactionHook(ctx, config)
+
+    await hook.config({ agent: { compaction: { model: "opencode/glm-4.6" } } })
+    const sessionA = "ses_override_reset_a"
+    await hook.event(
+      buildTokenMessage({
+        sessionID: sessionA,
+        providerID: "anthropic",
+        modelID: "claude-sonnet-4-6",
+        input: 800000,
+        cacheRead: 10000,
+      }),
+    )
+    await hook["tool.execute.after"](
+      { tool: "bash", sessionID: sessionA, callID: "call_a" },
+      { title: "", output: "test", metadata: null },
+    )
+
+    const callA = (ctx.client.session.summarize as ReturnType<typeof import("bun:test")["mock"]>).mock.calls[0]?.[0]
+    expect(callA?.body?.providerID).toBe("opencode")
+    expect(callA?.body?.modelID).toBe("glm-4.6")
+
+    await hook.config({})
+    const sessionB = "ses_override_reset_b"
+    await hook.event(
+      buildTokenMessage({
+        sessionID: sessionB,
+        providerID: "anthropic",
+        modelID: "claude-sonnet-4-6",
+        input: 800000,
+        cacheRead: 10000,
+      }),
+    )
+    await hook["tool.execute.after"](
+      { tool: "bash", sessionID: sessionB, callID: "call_b" },
+      { title: "", output: "test", metadata: null },
+    )
+
+    expect(ctx.client.session.summarize).toHaveBeenCalledTimes(2)
+    const callB = (ctx.client.session.summarize as ReturnType<typeof import("bun:test")["mock"]>).mock.calls[1]?.[0]
+    expect(callB?.body?.providerID).toBe("anthropic")
+    expect(callB?.body?.modelID).toBe("claude-sonnet-4-6")
   })
 })
 

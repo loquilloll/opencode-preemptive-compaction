@@ -127,4 +127,36 @@ describe("preemptive-compaction post-compaction degradation monitor", () => {
     expect(ctx.client.session.messages).not.toHaveBeenCalled()
     expect(ctx.client.session.summarize).not.toHaveBeenCalled()
   })
+
+  it("routes recovery summarize through the agent.compaction.model from the config hook", async () => {
+    const sessionHistory: AssistantHistoryMessage[] = []
+    const ctx = createMockCtx(sessionHistory)
+    const hook = createPreemptiveCompactionHook(ctx, defaultTestConfig())
+    const sessionID = "ses_recovery_model_override"
+
+    await hook.config({ agent: { compaction: { model: "openai/gpt-5-mini" } } })
+
+    await hook.event({
+      event: {
+        type: "session.compacted",
+        properties: { sessionID },
+      },
+    })
+
+    const stepOnlyParts = [{ type: "step-start" }, { type: "step-finish" }]
+
+    appendAssistantHistory(sessionHistory, { id: "msg_1", parts: stepOnlyParts })
+    await hook.event(buildAssistantUpdate({ sessionID, id: "msg_1", parts: stepOnlyParts }))
+
+    appendAssistantHistory(sessionHistory, { id: "msg_2", parts: stepOnlyParts })
+    await hook.event(buildAssistantUpdate({ sessionID, id: "msg_2", parts: stepOnlyParts }))
+
+    appendAssistantHistory(sessionHistory, { id: "msg_3", parts: stepOnlyParts })
+    await hook.event(buildAssistantUpdate({ sessionID, id: "msg_3", parts: stepOnlyParts }))
+
+    expect(ctx.client.session.summarize).toHaveBeenCalledTimes(1)
+    const call = (ctx.client.session.summarize as ReturnType<typeof import("bun:test")["mock"]>).mock.calls[0]?.[0]
+    expect(call?.body?.providerID).toBe("openai")
+    expect(call?.body?.modelID).toBe("gpt-5-mini")
+  })
 })

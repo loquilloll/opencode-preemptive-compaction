@@ -65,8 +65,9 @@ export function createPostCompactionDegradationMonitor(args: {
   config: PreemptiveCompactionConfig
   tokenCache: Map<string, CompactionTargetState>
   compactionInProgress: Set<string>
+  getCompactionModel: () => string | undefined
 }) {
-  const { client, directory, config, tokenCache, compactionInProgress } = args
+  const { client, directory, config, tokenCache, compactionInProgress, getCompactionModel } = args
   const monitor: DegradationMonitorConfig = config.degradationMonitor
 
   const postCompactionRemaining = new Map<string, number>()
@@ -124,7 +125,7 @@ export function createPostCompactionDegradationMonitor(args: {
 
     try {
       const { providerID: targetProviderID, modelID: targetModelID } = resolveCompactionModel(
-        config.compactionModel,
+        getCompactionModel(),
         cached.providerID,
         cached.modelID,
       )

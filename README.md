@@ -46,7 +46,7 @@ OpenCode auto-loads every `.ts`/`.js` file in those directories. The default exp
 
 ```sh
 bun install
-bun test          # 56 tests
+bun test          # 99 tests
 bun run typecheck # tsc --noEmit
 ```
 
@@ -62,7 +62,7 @@ bun run typecheck # tsc --noEmit
 
 ## Configuration
 
-All configuration is via environment variables (read at plugin load). Defaults match the original OmO behavior.
+Most configuration is via environment variables (read at plugin load). Defaults match the original OmO behavior. The one exception is the **compaction model**, which is sourced from OpenCode's standard `agent.compaction.model` config key (see [Compaction model](#compaction-model) below).
 
 | Env var | Default | Description |
 | --- | --- | --- |
@@ -70,7 +70,6 @@ All configuration is via environment variables (read at plugin load). Defaults m
 | `PREEMPTIVE_COMPACTION_THRESHOLD` | `0.78` | Usage ratio that triggers compaction. Clamped to `0.5`–`0.95`. |
 | `PREEMPTIVE_COMPACTION_COOLDOWN_MS` | `60000` | Minimum time between compaction attempts per session. |
 | `PREEMPTIVE_COMPACTION_TIMEOUT_MS` | `60000` | Abort the `summarize` call after this long. |
-| `PREEMPTIVE_COMPACTION_MODEL` | _unset_ | Override the model used for compaction, e.g. `opencode/glm-4.6`. Falls back to the session's model. |
 | `PREEMPTIVE_COMPACTION_MONITOR_ENABLED` | `true` | Enable the post-compaction degradation/recovery monitor. |
 | `PREEMPTIVE_COMPACTION_MONITOR_COUNT` | `5` | Assistant turns to observe after a compaction. |
 | `PREEMPTIVE_COMPACTION_MONITOR_NO_TEXT_THRESHOLD` | `3` | Consecutive no-text tails that trigger recovery compaction. |
@@ -80,6 +79,26 @@ All configuration is via environment variables (read at plugin load). Defaults m
 | `ANTHROPIC_1M_CONTEXT` | _unset_ | Treat Anthropic models as having the 1M context window. |
 | `VERTEX_ANTHROPIC_1M_CONTEXT` | _unset_ | Same, for the Vertex Anthropic provider. |
 | `PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON` | _unset_ | JSON map of `"<provider>/<model>": <limit>` for non-Anthropic models. Entries override or extend the built-in OpenAI and GitHub Copilot catalog, e.g. `{"opencode/kimi-k2.5-free":262144}`. |
+
+### Compaction model
+
+The model used to run the `summarize` compaction is sourced from OpenCode's standard config key `agent.compaction.model` (delivered to the plugin via the `config` plugin hook at startup). Set it in your `opencode.json`/`opencode.jsonc`:
+
+```jsonc
+// opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "compaction": {
+      "model": "opencode/glm-4.6"
+    }
+  }
+}
+```
+
+Format is `"provider/model"`. If unset (or set to an empty string), the plugin falls back to the session's own model.
+
+> **Migration:** the legacy `PREEMPTIVE_COMPACTION_MODEL` env var and the `compactionModel` field in `preemptive-compaction.config.json(c)` are **no longer read**. The plugin logs a one-time warning if it detects either at startup. Move them to `agent.compaction.model` as shown above.
 
 ### Context-limit resolution
 
@@ -106,7 +125,7 @@ The hook must know each model's true context limit to compute the usage ratio:
 | `shared/logger.ts` | `src/internal/logger.ts` (routes through `client.app.log`) |
 | OmO plugin config (`experimental.preemptive_compaction`) | `src/config.ts` (env-driven) |
 
-The OmO `resolveCompactionModel` read a per-agent `compaction.model` from the OmO agent config; here it reads a single `PREEMPTIVE_COMPACTION_MODEL` override. All other logic is ported verbatim.
+The OmO `resolveCompactionModel` read a per-agent `compaction.model` from the OmO agent config; this plugin reads `agent.compaction.model` from OpenCode's config (delivered via the `config` plugin hook). All other logic is ported verbatim.
 
 ## Programmatic use
 
@@ -119,6 +138,7 @@ const hook = createPreemptiveCompactionHook(
 )
 // hook["tool.execute.after"]  -> (input, output) => Promise<void>
 // hook.event                  -> ({ event }) => Promise<void>
+// hook.config                 -> (cfg) => Promise<void>   // reads agent.compaction.model
 ```
 
 ## License

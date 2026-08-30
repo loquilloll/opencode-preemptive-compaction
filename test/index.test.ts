@@ -34,5 +34,6 @@ describe("PreemptiveCompactionPlugin entry", () => {
     expect(hooks).not.toEqual({})
     expect(typeof (hooks as Record<string, unknown>)["tool.execute.after"]).toBe("function")
     expect(typeof (hooks as Record<string, unknown>)["event"]).toBe("function")
+    expect(typeof (hooks as Record<string, unknown>)["config"]).toBe("function")
   })
 })

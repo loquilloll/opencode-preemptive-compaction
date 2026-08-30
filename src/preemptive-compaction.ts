@@ -1,6 +1,7 @@
 import { isCompactionAgent } from "./internal/compaction-marker"
 import { resolveMessageEventSessionID, resolveSessionEventID } from "./internal/event-session-id"
 import type { ContextLimitModelCacheState } from "./internal/context-limit-resolver"
+import { extractCompactionModelFromConfig } from "./internal/opencode-agent-config"
 import { DEFAULT_CONFIG, type PreemptiveCompactionConfig } from "./config"
 
 import { createPostCompactionDegradationMonitor } from "./preemptive-compaction-degradation-monitor"
@@ -20,6 +21,7 @@ export function createPreemptiveCompactionHook(
   const compactedSessions = new Set<string>()
   const lastCompactionTime = new Map<string, number>()
   const tokenCache = new Map<string, CachedCompactionState>()
+  let compactionModelOverride: string | undefined
 
   const postCompactionMonitor = config.degradationMonitor.enabled
     ? createPostCompactionDegradationMonitor({
@@ -28,6 +30,7 @@ export function createPreemptiveCompactionHook(
         config,
         tokenCache,
         compactionInProgress,
+        getCompactionModel: () => compactionModelOverride,
       })
     : {
         clear: (_sessionID: string) => {},
@@ -48,6 +51,7 @@ export function createPreemptiveCompactionHook(
       compactionInProgress,
       compactedSessions,
       lastCompactionTime,
+      compactionModel: compactionModelOverride,
     })
   }
 
@@ -118,5 +122,8 @@ export function createPreemptiveCompactionHook(
   return {
     "tool.execute.after": toolExecuteAfter,
     event: eventHandler,
+    config: async (cfg: unknown) => {
+      compactionModelOverride = extractCompactionModelFromConfig(cfg)
+    },
   }
 }

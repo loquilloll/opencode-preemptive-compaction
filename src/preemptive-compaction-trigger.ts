@@ -47,6 +47,7 @@ export async function runPreemptiveCompactionIfNeeded(args: {
   compactionInProgress: Set<string>
   compactedSessions: Set<string>
   lastCompactionTime: Map<string, number>
+  compactionModel: string | undefined
 }): Promise<void> {
   const {
     ctx,
@@ -57,6 +58,7 @@ export async function runPreemptiveCompactionIfNeeded(args: {
     compactionInProgress,
     compactedSessions,
     lastCompactionTime,
+    compactionModel,
   } = args
 
   if (compactedSessions.has(sessionID) || compactionInProgress.has(sessionID)) return
@@ -90,7 +92,7 @@ export async function runPreemptiveCompactionIfNeeded(args: {
 
   try {
     const { providerID: targetProviderID, modelID: targetModelID } = resolveCompactionModel(
-      config.compactionModel,
+      compactionModel,
       cached.providerID,
       cached.modelID,
     )
