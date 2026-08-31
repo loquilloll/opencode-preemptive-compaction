@@ -2,6 +2,11 @@ import { isCompactionAgent } from "./internal/compaction-marker"
 import { resolveMessageEventSessionID, resolveSessionEventID } from "./internal/event-session-id"
 import type { ContextLimitModelCacheState } from "./internal/context-limit-resolver"
 import { extractCompactionModelFromConfig } from "./internal/opencode-agent-config"
+import {
+  createLocalModelLimitResolver,
+  extractLocalEndpoints,
+  type LocalModelLimitResolver,
+} from "./internal/local-model-limits"
 import { DEFAULT_CONFIG, type PreemptiveCompactionConfig } from "./config"
 
 import { createPostCompactionDegradationMonitor } from "./preemptive-compaction-degradation-monitor"
@@ -16,12 +21,14 @@ export function createPreemptiveCompactionHook(
   ctx: PreemptiveCompactionContext,
   config: PreemptiveCompactionConfig = DEFAULT_CONFIG,
   modelCacheState?: ContextLimitModelCacheState,
+  localLimits: LocalModelLimitResolver = createLocalModelLimitResolver(),
 ) {
   const compactionInProgress = new Set<string>()
   const compactedSessions = new Set<string>()
   const lastCompactionTime = new Map<string, number>()
   const tokenCache = new Map<string, CachedCompactionState>()
   let compactionModelOverride: string | undefined
+  const localLimitsImpl = localLimits
 
   const postCompactionMonitor = config.degradationMonitor.enabled
     ? createPostCompactionDegradationMonitor({
@@ -52,6 +59,7 @@ export function createPreemptiveCompactionHook(
       compactedSessions,
       lastCompactionTime,
       compactionModel: compactionModelOverride,
+      localLimits: localLimitsImpl,
     })
   }
 
@@ -124,6 +132,7 @@ export function createPreemptiveCompactionHook(
     event: eventHandler,
     config: async (cfg: unknown) => {
       compactionModelOverride = extractCompactionModelFromConfig(cfg)
+      localLimitsImpl.setEndpoints(extractLocalEndpoints(cfg))
     },
   }
 }

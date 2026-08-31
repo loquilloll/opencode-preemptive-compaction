@@ -8,6 +8,12 @@ export { createPreemptiveCompactionHook } from "./preemptive-compaction"
 export { runPreemptiveCompactionIfNeeded } from "./preemptive-compaction-trigger"
 export { resolveActualContextLimit } from "./internal/context-limit-resolver"
 export {
+  createLocalModelLimitResolver,
+  extractLocalEndpoints,
+  type LocalEndpoint,
+  type LocalModelLimitResolver,
+} from "./internal/local-model-limits"
+export {
   loadConfig,
   loadModelCacheState,
   DEFAULT_CONFIG,

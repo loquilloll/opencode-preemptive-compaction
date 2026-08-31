@@ -12,6 +12,10 @@ const PreemptiveCompactionPlugin = async ({
 
   const file = readConfigFile()
   const config = loadConfig(process.env, file)
+  log("[preemptive-compaction] plugin loaded", {
+    enabled: config.enabled,
+    threshold: config.threshold,
+  })
 
   if (process.env.PREEMPTIVE_COMPACTION_MODEL) {
     log("[preemptive-compaction] PREEMPTIVE_COMPACTION_MODEL is no longer read; set agent.compaction.model in opencode.json instead", {

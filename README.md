@@ -8,6 +8,7 @@ Extracted from [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent
 
 - Listens to `message.updated`, caching each assistant turn's token usage (`input` + `cache.read`) per session.
 - After every `tool.execute.after`, checks the cached usage against the model's real context limit.
+- For **local OpenAI-compatible providers** (any provider configured with `options.baseURL`, e.g. a local inference server at `http://127.0.0.1:8888/v1`), the context limit is resolved live from the endpoint: `GET {baseURL}/models` and the matching model's `context_length` (falling back to `max_context_length`). The endpoint-reported value is authoritative, so a server that resizes its context window at runtime is tracked.
 - When usage crosses the threshold (default **78%**), it calls `client.session.summarize` to compact the session **before** the model errors out.
 - Cooldown + in-progress guards prevent compaction storms or duplicate runs.
 - **Post-compaction degradation monitor**: after a compaction, watches the next assistant turns; if it detects repeated "no-text tail" responses (a known compaction-corruption symptom), it automatically re-runs compaction to recover.
@@ -70,6 +71,8 @@ Most configuration is via environment variables (read at plugin load). Defaults 
 | `PREEMPTIVE_COMPACTION_THRESHOLD` | `0.78` | Usage ratio that triggers compaction. Clamped to `0.5`–`0.95`. |
 | `PREEMPTIVE_COMPACTION_COOLDOWN_MS` | `60000` | Minimum time between compaction attempts per session. |
 | `PREEMPTIVE_COMPACTION_TIMEOUT_MS` | `60000` | Abort the `summarize` call after this long. |
+| `PREEMPTIVE_COMPACTION_LOCAL_TTL_MS` | `60000` | Cache TTL for context limits resolved from a local provider's `/models` endpoint. |
+| `PREEMPTIVE_COMPACTION_LOCAL_TIMEOUT_MS` | `5000` | Abort the local `/models` request after this long. |
 | `PREEMPTIVE_COMPACTION_MONITOR_ENABLED` | `true` | Enable the post-compaction degradation/recovery monitor. |
 | `PREEMPTIVE_COMPACTION_MONITOR_COUNT` | `5` | Assistant turns to observe after a compaction. |
 | `PREEMPTIVE_COMPACTION_MONITOR_NO_TEXT_THRESHOLD` | `3` | Consecutive no-text tails that trigger recovery compaction. |
@@ -104,6 +107,7 @@ Format is `"provider/model"`. If unset (or set to an empty string), the plugin f
 
 The hook must know each model's true context limit to compute the usage ratio:
 
+- **Local OpenAI-compatible providers** (any provider in your `opencode.json` with `options.baseURL`, e.g. `{"local": {"npm": "@ai-sdk/openai-compatible", "options": {"baseURL": "http://127.0.0.1:8888/v1"}}}`): the plugin queries `GET {baseURL}/models` and uses the matching model's `context_length` (falling back to `max_context_length`) as the context limit. The live endpoint value takes precedence over static/pinned limits, and the lookup is cached for `PREEMPTIVE_COMPACTION_LOCAL_TTL_MS`. If the endpoint is unreachable or does not report a limit, resolution falls back to the static catalog below. The provider's `options.apiKey` (including `{env:VAR}` references) is sent as a Bearer token if present.
 - **Anthropic** providers (`anthropic`, `google-vertex-anthropic`, `aws-bedrock-anthropic`, and `google` + `claude-*`): 1M for GA models (`claude-(opus|sonnet)-4.6/4.7/4.8`, `claude-fable-5`, `claude-mythos-5`), else 200k. The `ANTHROPIC_1M_CONTEXT`/`VERTEX_ANTHROPIC_1M_CONTEXT` env vars or the internal `anthropicContext1MEnabled` flag force 1M.
 - **OpenAI and GitHub Copilot**: a built-in model-limit catalog is bundled for the currently supported `gpt-5*`, `gpt-4.1`, and `claude-*` entries used by this repo's global install.
 - **Other providers**: looked up in the built-in/env model-limits map (`PREEMPTIVE_COMPACTION_MODEL_LIMITS_JSON` overlays the built-ins). Unknown models return `null` and compaction is **skipped** (safe default — never compact when the limit is unknown).

@@ -2,6 +2,7 @@ import {
   resolveActualContextLimit,
   type ContextLimitModelCacheState,
 } from "./internal/context-limit-resolver"
+import type { LocalModelLimitResolver } from "./internal/local-model-limits"
 import { log } from "./internal/logger"
 import { resolveCompactionModel } from "./internal/compaction-model-resolver"
 import type { PreemptiveCompactionConfig } from "./config"
@@ -48,6 +49,7 @@ export async function runPreemptiveCompactionIfNeeded(args: {
   compactedSessions: Set<string>
   lastCompactionTime: Map<string, number>
   compactionModel: string | undefined
+  localLimits?: LocalModelLimitResolver
 }): Promise<void> {
   const {
     ctx,
@@ -59,6 +61,7 @@ export async function runPreemptiveCompactionIfNeeded(args: {
     compactedSessions,
     lastCompactionTime,
     compactionModel,
+    localLimits,
   } = args
 
   if (compactedSessions.has(sessionID) || compactionInProgress.has(sessionID)) return
@@ -69,11 +72,24 @@ export async function runPreemptiveCompactionIfNeeded(args: {
   const cached = tokenCache.get(sessionID)
   if (!cached) return
 
-  const actualLimit = resolveActualContextLimit(
-    cached.providerID,
-    cached.modelID,
-    modelCacheState,
-  )
+  const localLimit = localLimits
+    ? await localLimits.resolve(cached.providerID, cached.modelID)
+    : null
+
+  const actualLimit = localLimit ??
+    resolveActualContextLimit(
+      cached.providerID,
+      cached.modelID,
+      modelCacheState,
+    )
+
+  if (localLimit !== null) {
+    log("[preemptive-compaction] Using context limit reported by local endpoint", {
+      providerID: cached.providerID,
+      modelID: cached.modelID,
+      limit: localLimit,
+    })
+  }
 
   if (actualLimit === null) {
     log("[preemptive-compaction] Skipping preemptive compaction: unknown context limit for model", {

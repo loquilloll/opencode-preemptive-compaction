@@ -37,6 +37,11 @@ Control flow:
 - `src/internal/context-limit-resolver.ts` — resolves a model's true context limit
   (Anthropic GA-1M detection, env flags, model-limits cache). Inlined verbatim from
   `@oh-my-opencode/model-core`.
+- `src/internal/local-model-limits.ts` — for providers configured with a custom
+  OpenAI-compatible `options.baseURL` (local inference servers), resolves the context limit
+  live from the endpoint's `GET /models` (`context_length`, falling back to
+  `max_context_length`) with a TTL cache, in-flight dedupe, request timeout, and optional
+  Bearer key. The endpoint value is authoritative; the static catalog is the fallback.
 - `src/internal/logger.ts` — routes `[preemptive-compaction]` logs through
   `client.app.log`, falling back to `console.debug`. `_setLoggerForTesting` for tests.
 - `src/config.ts` — env-driven config with defaults matching OmO.
