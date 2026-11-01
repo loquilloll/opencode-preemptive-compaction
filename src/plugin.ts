@@ -35,4 +35,13 @@ const PreemptiveCompactionPlugin = async ({
   return createPreemptiveCompactionHook({ client, directory }, config, modelCacheState)
 }
 
-export default PreemptiveCompactionPlugin
+// Dual-format default export so the built plugin loads under both plugin APIs:
+//   - opencode 1.x reads {id, server} and calls server(input) — the v1 path above.
+//   - opencode 2.x reads {id, setup} and calls setup(ctx). v2 ships native
+//     auto-compaction (on by default) that covers this plugin's preemptive threshold
+//     logic, so setup deliberately no-ops rather than stacking a second compactor.
+export const v2Setup = async () => {
+  log("[preemptive-compaction] opencode 2.x: deferring to native auto-compaction; v1 threshold hooks inactive")
+}
+
+export default { id: "preemptive-compaction", server: PreemptiveCompactionPlugin, setup: v2Setup }
